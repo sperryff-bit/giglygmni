@@ -1,0 +1,2124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gigly Distribution & Recovery Portal</title>
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Supabase JS SDK v2 -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- SheetJS (XLSX) for Excel Exports -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Google Fonts: Inter -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+  <!-- Toast / Notification Container (Replaces alert/confirm) -->
+  <div id="toastContainer" class="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
+
+  <!-- Custom Confirmation Modal -->
+  <div id="confirmModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 border border-slate-100">
+      <div class="flex items-center gap-3 text-amber-600 mb-3">
+        <div class="p-2 bg-amber-50 rounded-xl"><i data-lucide="alert-triangle" class="w-6 h-6"></i></div>
+        <h3 id="confirmTitle" class="text-lg font-bold text-slate-900">Confirm Action</h3>
+      </div>
+      <p id="confirmMessage" class="text-sm text-slate-600 mb-6">Are you sure you want to proceed?</p>
+      <div class="flex justify-end gap-3">
+        <button id="confirmCancelBtn" class="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-medium text-sm hover:bg-slate-50">Cancel</button>
+        <button id="confirmOkBtn" class="px-4 py-2.5 rounded-xl bg-rose-600 text-white font-medium text-sm hover:bg-rose-700">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- LOGIN SCREEN (CLEAN, ZERO HINTS)           -->
+  <!-- ========================================== -->
+  <div id="loginScreen" class="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 relative">
+    <!-- Hidden Cloud DB Config Trigger (Removed visual display from login) -->
+
+    <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 sm:p-8 border border-slate-100">
+      <div class="text-center mb-8">
+        <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-200 mb-4">
+          <i data-lucide="truck" class="w-7 h-7"></i>
+        </div>
+        <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">Gigly Distribution</h1>
+        <p class="text-sm text-slate-500 mt-1">Salesman Billing &amp; Recovery Portal</p>
+      </div>
+
+      <form id="loginForm" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Username</label>
+          <div class="relative">
+            <i data-lucide="user" class="w-5 h-5 text-slate-400 absolute left-3.5 top-3"></i>
+            <input type="text" id="loginUsername" required autocomplete="username" placeholder="Enter username"
+              class="w-full pl-11 pr-4 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none text-sm font-medium transition" />
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Password</label>
+          <div class="relative">
+            <i data-lucide="lock" class="w-5 h-5 text-slate-400 absolute left-3.5 top-3"></i>
+            <input type="password" id="loginPassword" required autocomplete="current-password" placeholder="Enter password"
+              class="w-full pl-11 pr-4 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none text-sm font-medium transition" />
+          </div>
+        </div>
+
+        <button type="submit" id="loginSubmitBtn"
+          class="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm shadow-lg shadow-indigo-200 transition flex items-center justify-center gap-2">
+          <span>Sign In</span>
+          <i data-lucide="arrow-right" class="w-4 h-4"></i>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MAIN APP SHELL                             -->
+  <!-- ========================================== -->
+  <div id="appShell" class="hidden flex-1 flex flex-col">
+    <!-- Top Navbar -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-30">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-sm">
+            <i data-lucide="truck" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-slate-900 text-base sm:text-lg leading-none">Gigly Distribution</span>
+              <span id="roleBadge" class="px-2 py-0.5 text-[11px] font-bold rounded-full bg-indigo-50 text-indigo-700 uppercase"></span>
+            </div>
+            <p class="text-xs text-slate-500 mt-0.5" id="loggedUserSubtitle">Welcome back</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 sm:gap-3">
+          <!-- Hidden Cloud Status Button in Header -->
+          <button onclick="openSupabaseModal()" id="headerDbStatusBtn" class="hidden">
+            <span id="headerDbDot" class="w-2 h-2 rounded-full bg-amber-500"></span>
+            <span id="headerDbText">Setup Supabase</span>
+          </button>
+
+          <!-- Sync Refresh Button -->
+          <button onclick="syncFromCloud(true)" title="Sync Latest Cloud Data"
+            class="p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition">
+            <i data-lucide="refresh-cw" id="syncIcon" class="w-4 h-4"></i>
+          </button>
+
+          <!-- Superadmin Salesman Filter -->
+          <div id="superadminFilterWrap" class="hidden items-center gap-2">
+            <label for="salesmanFilter" class="text-xs font-semibold text-slate-500 hidden md:inline">Salesman:</label>
+            <select id="salesmanFilter" onchange="handleGlobalFilterChange()"
+              class="text-xs sm:text-sm font-semibold bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500">
+              <option value="ALL">All Salesmen</option>
+              <option value="Naeem">Naeem</option>
+              <option value="Hussain">Hussain</option>
+              <option value="Amjad">Amjad</option>
+            </select>
+          </div>
+
+          <button onclick="logout()"
+            class="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 text-xs sm:text-sm font-semibold transition">
+            <i data-lucide="log-out" class="w-4 h-4"></i>
+            <span class="hidden sm:inline">Logout</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 overflow-x-auto custom-scrollbar">
+        <nav class="flex gap-1 sm:gap-2 border-t border-slate-100 py-2" id="mainNav">
+          <button data-tab="dashboard" onclick="switchTab('dashboard')" class="nav-btn active flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap transition">
+            <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard
+          </button>
+          <button data-tab="shopkeepers" onclick="switchTab('shopkeepers')" class="nav-btn flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap transition">
+            <i data-lucide="store" class="w-4 h-4"></i> Shopkeepers
+          </button>
+          <button data-tab="bills" onclick="switchTab('bills')" class="nav-btn flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap transition">
+            <i data-lucide="file-text" class="w-4 h-4"></i> Bills & Overdue
+            <span id="navOverdueCount" class="hidden px-1.5 py-0.5 text-[10px] font-bold bg-rose-600 text-white rounded-full">0</span>
+          </button>
+          <button data-tab="recoveries" onclick="switchTab('recoveries')" class="nav-btn flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap transition">
+            <i data-lucide="banknote" class="w-4 h-4"></i> Daily Recovery
+          </button>
+          <button data-tab="reports" onclick="switchTab('reports')" class="nav-btn flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap transition">
+            <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Excel Reports
+          </button>
+        </nav>
+      </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
+      <!-- Cloud Setup Warning Banner hidden -->
+      <div id="cloudWarningBanner" class="hidden"></div>
+
+      <!-- ========================================== -->
+      <!-- TAB 1: DASHBOARD                           -->
+      <!-- ========================================== -->
+      <section id="tab-dashboard" class="tab-section space-y-6">
+        <!-- Overdue Alert Banner -->
+        <div id="overdueBanner" class="hidden bg-rose-50 border border-rose-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div class="flex items-start sm:items-center gap-3">
+            <div class="p-2.5 bg-rose-600 text-white rounded-xl shrink-0">
+              <i data-lucide="alert-octagon" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <h3 class="text-sm font-bold text-rose-900">Overdue Bills Warning (&gt;14 Days)</h3>
+              <p id="overdueBannerText" class="text-xs text-rose-700 mt-0.5">You have bills pending for more than 14 days.</p>
+            </div>
+          </div>
+          <button onclick="viewOverdueBills()" class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold whitespace-nowrap self-start sm:self-auto transition">
+            View Overdue Bills
+          </button>
+        </div>
+
+        <!-- Quick Action Buttons -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <button onclick="openModal('shopkeeperModal')" class="flex items-center justify-center gap-2 p-3.5 rounded-2xl bg-white border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/40 shadow-sm transition text-xs sm:text-sm font-bold text-slate-800">
+            <div class="p-2 rounded-xl bg-indigo-100 text-indigo-600"><i data-lucide="store" class="w-4 h-4"></i></div>
+            <span>+ Add Shopkeeper</span>
+          </button>
+          <button onclick="openNewBillModal()" class="flex items-center justify-center gap-2 p-3.5 rounded-2xl bg-white border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/40 shadow-sm transition text-xs sm:text-sm font-bold text-slate-800">
+            <div class="p-2 rounded-xl bg-emerald-100 text-emerald-600"><i data-lucide="file-plus" class="w-4 h-4"></i></div>
+            <span>+ Create New Bill</span>
+          </button>
+          <button onclick="openRecoveryModal()" class="flex items-center justify-center gap-2 p-3.5 rounded-2xl bg-white border border-slate-200 hover:border-amber-400 hover:bg-amber-50/40 shadow-sm transition text-xs sm:text-sm font-bold text-slate-800">
+            <div class="p-2 rounded-xl bg-amber-100 text-amber-600"><i data-lucide="wallet" class="w-4 h-4"></i></div>
+            <span>+ Add Recovery</span>
+          </button>
+          <button onclick="switchTab('reports')" class="flex items-center justify-center gap-2 p-3.5 rounded-2xl bg-white border border-slate-200 hover:border-sky-400 hover:bg-sky-50/40 shadow-sm transition text-xs sm:text-sm font-bold text-slate-800">
+            <div class="p-2 rounded-xl bg-sky-100 text-sky-600"><i data-lucide="download" class="w-4 h-4"></i></div>
+            <span>Export Excel</span>
+          </button>
+        </div>
+
+        <!-- KPI Summary Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="kpiGrid">
+          <!-- Populated by JS -->
+        </div>
+
+        <!-- Superadmin Salesman Performance Breakdown -->
+        <div id="superadminSalesmanCards" class="hidden space-y-3">
+          <div class="flex items-center justify-between">
+            <h2 class="text-base font-bold text-slate-900">Salesman-Wise Performance Breakdown</h2>
+            <span class="text-xs text-slate-500">Superadmin Overview</span>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="salesmanBreakdownGrid">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+
+        <!-- Recent Activity Split Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <!-- Recent Bills -->
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="p-4 border-b border-slate-100 flex items-center justify-between">
+              <h3 class="font-bold text-slate-900 text-sm">Recent Bills</h3>
+              <button onclick="switchTab('bills')" class="text-xs font-semibold text-indigo-600 hover:underline">View All</button>
+            </div>
+            <div class="divide-y divide-slate-100" id="recentBillsList"></div>
+          </div>
+
+          <!-- Today's & Recent Recoveries -->
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="p-4 border-b border-slate-100 flex items-center justify-between">
+              <h3 class="font-bold text-slate-900 text-sm">Recent Recoveries</h3>
+              <button onclick="switchTab('recoveries')" class="text-xs font-semibold text-indigo-600 hover:underline">View All</button>
+            </div>
+            <div class="divide-y divide-slate-100" id="recentRecoveriesList"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================== -->
+      <!-- TAB 2: SHOPKEEPERS                         -->
+      <!-- ========================================== -->
+      <section id="tab-shopkeepers" class="tab-section hidden space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+          <div class="relative flex-1 max-w-md">
+            <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3"></i>
+            <input type="text" id="shopSearchInput" oninput="renderShopkeepers()" placeholder="Search shop name, phone, or address..."
+              class="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-500" />
+          </div>
+          <button onclick="openModal('shopkeeperModal')" class="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold flex items-center justify-center gap-2 transition">
+            <i data-lucide="plus" class="w-4 h-4"></i> Add New Shopkeeper
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="shopkeepersGrid">
+          <!-- Populated by JS -->
+        </div>
+      </section>
+
+      <!-- ========================================== -->
+      <!-- TAB 3: BILLS & OVERDUE                     -->
+      <!-- ========================================== -->
+      <section id="tab-bills" class="tab-section hidden space-y-4">
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div class="flex flex-wrap items-center gap-2">
+            <button onclick="setBillFilter('ALL')" data-bfilter="ALL" class="bill-filter-btn px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 text-white">All Bills</button>
+            <button onclick="setBillFilter('PENDING')" data-bfilter="PENDING" class="bill-filter-btn px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-600">Pending</button>
+            <button onclick="setBillFilter('OVERDUE')" data-bfilter="OVERDUE" class="bill-filter-btn px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-50 text-rose-600">Overdue (&gt;14 Days)</button>
+            <button onclick="setBillFilter('PAID')" data-bfilter="PAID" class="bill-filter-btn px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-600">Paid</button>
+          </div>
+          <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+            <div class="relative">
+              <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
+              <input type="text" id="billSearchInput" oninput="renderBills()" placeholder="Search bill # or shop..."
+                class="pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm outline-none focus:border-indigo-500 w-full sm:w-56" />
+            </div>
+            <button onclick="openNewBillModal()" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold flex items-center justify-center gap-1.5">
+              <i data-lucide="plus" class="w-4 h-4"></i> New Bill
+            </button>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                  <th class="py-3.5 px-4">Bill # / Date</th>
+                  <th class="py-3.5 px-4">Shopkeeper</th>
+                  <th class="py-3.5 px-4">Salesman</th>
+                  <th class="py-3.5 px-4 text-right">Opening Bal</th>
+                  <th class="py-3.5 px-4 text-right">New Bill</th>
+                  <th class="py-3.5 px-4 text-right">Total Bill</th>
+                  <th class="py-3.5 px-4 text-right">Remaining</th>
+                  <th class="py-3.5 px-4">Status / Age</th>
+                  <th class="py-3.5 px-4 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody id="billsTableBody" class="divide-y divide-slate-100 text-sm">
+                <!-- Populated by JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================== -->
+      <!-- TAB 4: DAILY RECOVERY                      -->
+      <!-- ========================================== -->
+      <section id="tab-recoveries" class="tab-section hidden space-y-4">
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div class="flex flex-wrap items-center gap-3">
+            <div>
+              <label class="block text-[10px] font-bold uppercase text-slate-400">Filter by Date</label>
+              <input type="date" id="recoveryDateFilter" onchange="renderRecoveries()"
+                class="px-3 py-1.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-medium outline-none focus:border-indigo-500" />
+            </div>
+            <button onclick="document.getElementById('recoveryDateFilter').value=''; renderRecoveries();"
+              class="mt-4 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-600">
+              Show All Dates
+            </button>
+          </div>
+          <button onclick="openRecoveryModal()" class="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold flex items-center justify-center gap-2">
+            <i data-lucide="plus" class="w-4 h-4"></i> Add Daily Recovery
+          </button>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                  <th class="py-3.5 px-4">Date</th>
+                  <th class="py-3.5 px-4">Shopkeeper</th>
+                  <th class="py-3.5 px-4">Salesman</th>
+                  <th class="py-3.5 px-4">Method</th>
+                  <th class="py-3.5 px-4">Notes</th>
+                  <th class="py-3.5 px-4 text-right">Amount Recovered</th>
+                  <th class="py-3.5 px-4 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody id="recoveriesTableBody" class="divide-y divide-slate-100 text-sm">
+                <!-- Populated by JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================== -->
+      <!-- TAB 5: EXCEL REPORTS & BACKUP              -->
+      <!-- ========================================== -->
+      <section id="tab-reports" class="tab-section hidden space-y-6">
+        <!-- Export Filter Controls -->
+        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+            <div>
+              <h2 class="text-base font-bold text-slate-900">Excel Report Generator (.xlsx)</h2>
+              <p class="text-xs text-slate-500">Select date, month, and salesman to download separate Excel sheets.</p>
+            </div>
+            <div class="flex items-center gap-2 self-start">
+              <button onclick="downloadJSONBackup()" class="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <i data-lucide="download" class="w-3.5 h-3.5"></i> JSON Snapshot
+              </button>
+              <span class="px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 text-xs font-bold">SheetJS Ready</span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">Daily Report Date</label>
+              <input type="date" id="exportDailyDate" class="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm font-medium outline-none focus:border-indigo-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">Monthly Report Month</label>
+              <input type="month" id="exportMonthlyDate" class="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm font-medium outline-none focus:border-indigo-500" />
+            </div>
+            <div id="exportSalesmanSelectWrap">
+              <label class="block text-xs font-bold text-slate-600 mb-1">Salesman Scope</label>
+              <select id="exportSalesmanScope" class="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm font-medium outline-none focus:border-indigo-500">
+                <option value="ALL">All Salesmen (Combined)</option>
+                <option value="Naeem">Naeem Only</option>
+                <option value="Hussain">Hussain Only</option>
+                <option value="Amjad">Amjad Only</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- 6 Dedicated Excel Export Cards -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
+            <!-- 1. Daily Recovery -->
+            <div class="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 flex flex-col justify-between gap-3">
+              <div>
+                <div class="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center mb-2">
+                  <i data-lucide="calendar-check" class="w-5 h-5"></i>
+                </div>
+                <h4 class="font-bold text-slate-900 text-sm">1. Daily Recovery Excel</h4>
+                <p class="text-xs text-slate-500 mt-1">Har din ki recovery alag download karein (filtered by selected Date &amp; Salesman).</p>
+              </div>
+              <button onclick="exportExcel('DAILY_RECOVERY')" class="w-full py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold flex items-center justify-center gap-2 transition">
+                <i data-lucide="download" class="w-4 h-4"></i> Download Daily Recovery
+              </button>
+            </div>
+
+            <!-- 2. Monthly Recovery -->
+            <div class="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 flex flex-col justify-between gap-3">
+              <div>
+                <div class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center mb-2">
+                  <i data-lucide="banknote" class="w-5 h-5"></i>
+                </div>
+                <h4 class="font-bold text-slate-900 text-sm">2. Monthly Recovery Excel</h4>
+                <p class="text-xs text-slate-500 mt-1">Poore mahine ki recovery report (filtered by selected Month &amp; Salesman).</p>
+              </div>
+              <button onclick="exportExcel('MONTHLY_RECOVERY')" class="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-2 transition">
+                <i data-lucide="download" class="w-4 h-4"></i> Download Monthly Recovery
+              </button>
+            </div>
+
+            <!-- 3. Daily Bills -->
+            <div class="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 flex flex-col justify-between gap-3">
+              <div>
+                <div class="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center mb-2">
+                  <i data-lucide="file-text" class="w-5 h-5"></i>
+                </div>
+                <h4 class="font-bold text-slate-900 text-sm">3. Daily Bills Excel</h4>
+                <p class="text-xs text-slate-500 mt-1">Selected date ke tamam bills (Opening, New Bill, Total Bill).</p>
+              </div>
+              <button onclick="exportExcel('DAILY_BILLS')" class="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center justify-center gap-2 transition">
+                <i data-lucide="download" class="w-4 h-4"></i> Download Daily Bills
+              </button>
+            </div>
+
+            <!-- 4. Monthly Bills -->
+            <div class="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 flex flex-col justify-between gap-3">
+              <div>
+                <div class="w-9 h-9 rounded-xl bg-violet-100 text-violet-700 flex items-center justify-center mb-2">
+                  <i data-lucide="files" class="w-5 h-5"></i>
+                </div>
+                <h4 class="font-bold text-slate-900 text-sm">4. Monthly Bills Excel</h4>
+                <p class="text-xs text-slate-500 mt-1">Poore mahine ke bills aur unka pending/paid status.</p>
+              </div>
+              <button onclick="exportExcel('MONTHLY_BILLS')" class="w-full py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold flex items-center justify-center gap-2 transition">
+                <i data-lucide="download" class="w-4 h-4"></i> Download Monthly Bills
+              </button>
+            </div>
+
+            <!-- 5. Shopkeepers & Ledger Summary -->
+            <div class="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 flex flex-col justify-between gap-3">
+              <div>
+                <div class="w-9 h-9 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center mb-2">
+                  <i data-lucide="store" class="w-5 h-5"></i>
+                </div>
+                <h4 class="font-bold text-slate-900 text-sm">5. Shopkeepers Ledger Excel</h4>
+                <p class="text-xs text-slate-500 mt-1">Tamam dukandaron ke naam, phone, address aur current pending balance.</p>
+              </div>
+              <button onclick="exportExcel('SHOPKEEPERS')" class="w-full py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold flex items-center justify-center gap-2 transition">
+                <i data-lucide="download" class="w-4 h-4"></i> Download Shopkeepers List
+              </button>
+            </div>
+
+            <!-- 6. Complete Master Multi-Sheet Workbook -->
+            <div class="p-4 rounded-2xl border-2 border-slate-900 bg-slate-900 text-white flex flex-col justify-between gap-3">
+              <div>
+                <div class="w-9 h-9 rounded-xl bg-white/10 text-amber-400 flex items-center justify-center mb-2">
+                  <i data-lucide="layers" class="w-5 h-5"></i>
+                </div>
+                <h4 class="font-bold text-white text-sm">6. Master Multi-Sheet Workbook</h4>
+                <p class="text-xs text-slate-300 mt-1">Ek hi Excel file mein alag tabs (Shopkeepers, Bills, Recoveries, Salesman-wise).</p>
+              </div>
+              <button onclick="exportExcel('MASTER_ALL')" class="w-full py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-extrabold flex items-center justify-center gap-2 transition">
+                <i data-lucide="download" class="w-4 h-4"></i> Download Master Excel
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: ADD / EDIT SHOPKEEPER               -->
+  <!-- ========================================== -->
+  <div id="shopkeeperModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 border border-slate-100">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-bold text-slate-900">Add New Shopkeeper</h3>
+        <button onclick="closeModal('shopkeeperModal')" class="p-1.5 rounded-xl text-slate-400 hover:bg-slate-100"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+      <form id="shopkeeperForm" class="space-y-4">
+        <div id="shopSalesmanFieldWrap" class="hidden">
+          <label class="block text-xs font-bold text-slate-600 mb-1">Assign Salesman *</label>
+          <select id="shopSalesman" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm font-medium outline-none focus:border-indigo-500">
+            <option value="Naeem">Naeem</option>
+            <option value="Hussain">Hussain</option>
+            <option value="Amjad">Amjad</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">Shop / Shopkeeper Name *</label>
+          <input type="text" id="shopName" required placeholder="e.g. Al-Madina Karyana Store"
+            class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-500" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">Phone Number *</label>
+          <input type="tel" id="shopPhone" required placeholder="e.g. 0300-1234567"
+            class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-500" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">Complete Address *</label>
+          <textarea id="shopAddress" required rows="2" placeholder="e.g. Main Bazar, Ghulam Muhammad Abad, Faisalabad"
+            class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-500"></textarea>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="closeModal('shopkeeperModal')" class="px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600">Cancel</button>
+          <button type="submit" id="saveShopBtn" class="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold">Save Shopkeeper</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: CREATE NEW BILL                     -->
+  <!-- ========================================== -->
+  <div id="newBillModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-6 border border-slate-100 max-h-[92vh] overflow-y-auto">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-bold text-slate-900">Create New Bill</h3>
+        <button onclick="closeModal('newBillModal')" class="p-1.5 rounded-xl text-slate-400 hover:bg-slate-100"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+      <form id="newBillForm" class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">Select Shopkeeper *</label>
+          <select id="billShopSelect" required onchange="onBillShopSelect()"
+            class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm font-medium outline-none focus:border-indigo-500">
+            <option value="">-- Choose Shopkeeper --</option>
+          </select>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">Bill Date *</label>
+            <input type="date" id="billDate" required
+              class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm font-medium outline-none focus:border-indigo-500" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">Bill / Invoice # *</label>
+            <input type="text" id="billNumber" required placeholder="INV-1001"
+              class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm font-mono font-semibold outline-none focus:border-indigo-500" />
+          </div>
+        </div>
+
+        <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">Opening Balance (Rs.)</label>
+              <input type="number" id="billOpeningBal" min="0" step="1" value="0" oninput="calculateTotalBill()"
+                class="w-full px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-800 outline-none focus:border-indigo-500" />
+              <span class="text-[10px] text-slate-400">Auto-filled from previous pending</span>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">New Bill Balance (Rs.) *</label>
+              <input type="number" id="billCurrentAmt" required min="1" step="1" placeholder="0" oninput="calculateTotalBill()"
+                class="w-full px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-sm font-bold text-emerald-700 outline-none focus:border-emerald-500" />
+            </div>
+          </div>
+
+          <div class="pt-2 border-t border-slate-200 flex items-center justify-between">
+            <span class="text-xs font-bold uppercase text-slate-500">Total Bill (Opening + New)</span>
+            <span id="billTotalDisplay" class="text-xl font-extrabold text-indigo-700">Rs. 0</span>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">Items / Notes (Optional)</label>
+          <input type="text" id="billNotes" placeholder="e.g. 10 Cartons Cooking Oil, 5 Bags Sugar"
+            class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-500" />
+        </div>
+
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="closeModal('newBillModal')" class="px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600">Cancel</button>
+          <button type="submit" id="saveBillBtn" class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold">Generate Bill</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: ADD DAILY RECOVERY                  -->
+  <!-- ========================================== -->
+  <div id="recoveryModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 border border-slate-100">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-bold text-slate-900">Record Daily Recovery</h3>
+        <button onclick="closeModal('recoveryModal')" class="p-1.5 rounded-xl text-slate-400 hover:bg-slate-100"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+      <form id="recoveryForm" class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">Select Shopkeeper *</label>
+          <select id="recShopSelect" required onchange="onRecShopSelect()"
+            class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm font-medium outline-none focus:border-indigo-500">
+            <option value="">-- Choose Shopkeeper --</option>
+          </select>
+          <p id="recShopPendingInfo" class="text-xs font-semibold text-amber-700 mt-1 hidden"></p>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">Recovery Date *</label>
+            <input type="date" id="recDate" required
+              class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm font-medium outline-none focus:border-indigo-500" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">Payment Method</label>
+            <select id="recMethod" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm font-medium outline-none focus:border-indigo-500">
+              <option value="Cash">Cash</option>
+              <option value="JazzCash / EasyPaisa">JazzCash / EasyPaisa</option>
+              <option value="Bank Transfer">Bank Transfer</option>
+              <option value="Cheque">Cheque</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">Amount Paid / Recovered (Rs.) *</label>
+          <input type="number" id="recAmount" required min="1" step="1" placeholder="Enter amount received"
+            class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-base font-extrabold text-emerald-700 outline-none focus:border-emerald-500" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">Notes / Receipt Ref (Optional)</label>
+          <input type="text" id="recNotes" placeholder="e.g. Cash collected by salesman"
+            class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-500" />
+        </div>
+
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="closeModal('recoveryModal')" class="px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600">Cancel</button>
+          <button type="submit" id="saveRecBtn" class="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold">Save Recovery</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: SHOPKEEPER LEDGER                   -->
+  <!-- ========================================== -->
+  <div id="ledgerModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-2xl w-full p-6 border border-slate-100 max-h-[90vh] flex flex-col">
+      <div class="flex items-start justify-between gap-3 pb-3 border-b border-slate-100">
+        <div>
+          <h3 id="ledgerShopName" class="text-lg font-bold text-slate-900">Shop Ledger</h3>
+          <p id="ledgerShopMeta" class="text-xs text-slate-500 mt-0.5"></p>
+        </div>
+        <button onclick="closeModal('ledgerModal')" class="p-1.5 rounded-xl text-slate-400 hover:bg-slate-100"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+
+      <div id="ledgerSummaryBar" class="grid grid-cols-3 gap-3 my-4"></div>
+
+      <div class="overflow-y-auto custom-scrollbar border border-slate-200 rounded-2xl flex-1">
+        <table class="w-full text-left border-collapse text-xs">
+          <thead>
+            <tr class="bg-slate-50 border-b border-slate-200 text-[10px] font-bold uppercase text-slate-500">
+              <th class="py-2.5 px-3">Date</th>
+              <th class="py-2.5 px-3">Description</th>
+              <th class="py-2.5 px-3 text-right">Billed (Debit)</th>
+              <th class="py-2.5 px-3 text-right">Paid (Credit)</th>
+            </tr>
+          </thead>
+          <tbody id="ledgerTableBody" class="divide-y divide-slate-100"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: SUPABASE CLOUD & VERCEL SETUP       -->
+  <!-- ========================================== -->
+  <div id="supabaseModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-xl w-full p-6 border border-slate-100 max-h-[92vh] overflow-y-auto custom-scrollbar">
+      <div class="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+        <div class="flex items-center gap-2.5">
+          <div class="p-2 bg-emerald-600 text-white rounded-xl"><i data-lucide="database" class="w-5 h-5"></i></div>
+          <div>
+            <h3 class="text-base font-bold text-slate-900">Supabase Cloud Database Setup</h3>
+            <p class="text-xs text-slate-500">Connect your free Supabase PostgreSQL project for permanent storage</p>
+          </div>
+        </div>
+        <button onclick="closeModal('supabaseModal')" class="p-1.5 rounded-xl text-slate-400 hover:bg-slate-100"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+
+      <form id="supabaseConfigForm" class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Supabase Project URL *</label>
+          <input type="url" id="sbUrlInput" required placeholder="https://xxxxxxxxxxxx.supabase.co"
+            class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-mono outline-none focus:border-emerald-500" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Supabase Anon / Public Key *</label>
+          <input type="text" id="sbKeyInput" required placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-mono outline-none focus:border-emerald-500" />
+        </div>
+
+        <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+          <button type="button" onclick="disconnectSupabase()" class="px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50">
+            Disconnect
+          </button>
+          <button type="submit" class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold shadow-sm">
+            Save &amp; Connect Cloud
+          </button>
+        </div>
+      </form>
+
+      <!-- SQL Table Creation Script -->
+      <div class="mt-6 pt-4 border-t border-slate-200 space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold text-slate-800">Step 1: Run this SQL in Supabase SQL Editor</span>
+          <button type="button" onclick="copySqlScript()" class="px-3 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-semibold flex items-center gap-1.5">
+            <i data-lucide="copy" class="w-3 h-3"></i> Copy SQL
+          </button>
+        </div>
+        <div class="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900">
+          Database security is managed in Supabase. Do not enable public table access or add permissive policies.
+          This portal requires Supabase Auth sign-in and the existing Row Level Security policies.
+        </div>
+        <p class="text-[11px] text-slate-500">
+          <strong>Vercel Deployment:</strong> Save this file as <code class="bg-slate-100 px-1 rounded">index.html</code>, push to GitHub, and deploy on Vercel (Framework: <em>Other</em>). All devices will sync via your Supabase URL &amp; Key.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- JAVASCRIPT APPLICATION LOGIC               -->
+  <!-- ========================================== -->
+  <script>
+    // ==========================================
+    // 1. SUPABASE PROJECT & AUTH CONFIGURATION
+    // ==========================================
+    // Supabase publishable/anon key is intended for browser use.
+    // Access is protected by Supabase Auth + Row Level Security (RLS).
+    const DEFAULT_SUPABASE_URL = 'https://zlqaxyedqwzxymijudnr.supabase.co';
+    const DEFAULT_SUPABASE_ANON_KEY = 'sb_publishable_V_nrIQz7PvFLpyz7LNPDBg_ABD4QH9W';
+
+    // Usernames map to Supabase Auth emails. Passwords are never stored in this file.
+    const USERS = {
+      'naeem': { email: 'naeem@email.local', username: 'Naeem', role: 'SALESMAN' },
+      'hussain': { email: 'hussain@email.local', username: 'Hussain', role: 'SALESMAN' },
+      'amjad': { email: 'amjad@email.local', username: 'Amjad', role: 'SALESMAN' },
+      'superadmin': { email: 'admin@email.local', username: 'superadmin', role: 'SUPERADMIN' }
+    };
+
+    const SB_CONFIG_KEY = 'gigly_supabase_cfg_v1';
+
+    let supabaseClient = null;
+    let isCloudConnected = false;
+
+    // Clean, empty initial state (Zero dummy data)
+    let appState = {
+      shopkeepers: [],
+      bills: [],
+      recoveries: []
+    };
+
+    let currentUser = null;
+    let selectedSalesmanFilter = 'ALL';
+    let currentBillFilter = 'ALL';
+
+    // ==========================================
+    // 2. SUPABASE CONNECTION & CLOUD SYNC
+    // ==========================================
+    function getSupabaseConfig() {
+      const hasHardcoded = DEFAULT_SUPABASE_URL &&
+        DEFAULT_SUPABASE_ANON_KEY &&
+        !DEFAULT_SUPABASE_URL.includes('YOUR_PROJECT_ID') &&
+        !DEFAULT_SUPABASE_ANON_KEY.includes('YOUR_SUPABASE_ANON_KEY');
+
+      if (hasHardcoded) {
+        return { url: DEFAULT_SUPABASE_URL.trim(), key: DEFAULT_SUPABASE_ANON_KEY.trim() };
+      }
+      try {
+        const saved = JSON.parse(localStorage.getItem(SB_CONFIG_KEY));
+        if (saved && saved.url && saved.key) return saved;
+      } catch (e) {}
+      return null;
+    }
+
+    function initSupabase() {
+      const cfg = getSupabaseConfig();
+      if (!cfg || typeof window.supabase === 'undefined') {
+        supabaseClient = null;
+        isCloudConnected = false;
+        updateCloudStatusUI(false);
+        return false;
+      }
+      try {
+        supabaseClient = window.supabase.createClient(cfg.url, cfg.key);
+        isCloudConnected = true;
+        updateCloudStatusUI(true);
+        return true;
+      } catch (err) {
+        supabaseClient = null;
+        isCloudConnected = false;
+        updateCloudStatusUI(false);
+        return false;
+      }
+    }
+
+    function updateCloudStatusUI(connected) {
+      // Setup button & warning banners are now hidden from regular users
+      const warningBanner = document.getElementById('cloudWarningBanner');
+      if (warningBanner) warningBanner.classList.add('hidden');
+    }
+
+    async function syncFromCloud(showNotification = false) {
+      if (!supabaseClient) {
+        updateCloudStatusUI(false);
+        refreshAllViews();
+        return;
+      }
+
+      const syncIcon = document.getElementById('syncIcon');
+      if (syncIcon) syncIcon.classList.add('animate-spin');
+
+      try {
+        const [shopsRes, billsRes, recsRes] = await Promise.all([
+          supabaseClient.from('shopkeepers').select('*').order('created_at', { ascending: false }),
+          supabaseClient.from('bills').select('*').order('date', { ascending: false }),
+          supabaseClient.from('recoveries').select('*').order('date', { ascending: false })
+        ]);
+
+        if (shopsRes.error) throw shopsRes.error;
+        if (billsRes.error) throw billsRes.error;
+        if (recsRes.error) throw recsRes.error;
+
+        appState.shopkeepers = (shopsRes.data || []).map(row => ({
+          id: row.id,
+          salesman: row.salesman,
+          name: row.name,
+          phone: row.phone,
+          address: row.address,
+          createdAt: row.created_at
+        }));
+
+        appState.bills = (billsRes.data || []).map(row => ({
+          id: row.id,
+          billNumber: row.bill_number,
+          shopId: row.shop_id,
+          salesman: row.salesman,
+          date: row.date,
+          openingBalance: Number(row.opening_balance || 0),
+          billBalance: Number(row.bill_balance || 0),
+          totalBill: Number(row.total_bill || 0),
+          paidAmount: Number(row.paid_amount || 0),
+          notes: row.notes || ''
+        }));
+
+        appState.recoveries = (recsRes.data || []).map(row => ({
+          id: row.id,
+          shopId: row.shop_id,
+          salesman: row.salesman,
+          date: row.date,
+          amount: Number(row.amount || 0),
+          method: row.method,
+          notes: row.notes || ''
+        }));
+
+        isCloudConnected = true;
+        updateCloudStatusUI(true);
+        refreshAllViews();
+        if (showNotification) showToast('Synced latest records from Supabase!', 'success');
+      } catch (err) {
+        console.error('Supabase fetch error:', err);
+        showToast('Database Error: ' + (err.message || 'Check SQL tables & keys'), 'error');
+      } finally {
+        if (syncIcon) syncIcon.classList.remove('animate-spin');
+      }
+    }
+
+    function openSupabaseModal() {
+      const cfg = getSupabaseConfig();
+      document.getElementById('sbUrlInput').value = cfg ? cfg.url : '';
+      document.getElementById('sbKeyInput').value = cfg ? cfg.key : '';
+      openModal('supabaseModal');
+    }
+
+    document.getElementById('supabaseConfigForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const url = document.getElementById('sbUrlInput').value.trim();
+      const key = document.getElementById('sbKeyInput').value.trim();
+      if (!url || !key) return;
+
+      localStorage.setItem(SB_CONFIG_KEY, JSON.stringify({ url, key }));
+      if (initSupabase()) {
+        closeModal('supabaseModal');
+        await syncFromCloud(true);
+      } else {
+        showToast('Invalid Supabase URL or Anon Key.', 'error');
+      }
+    });
+
+    function disconnectSupabase() {
+      localStorage.removeItem(SB_CONFIG_KEY);
+      supabaseClient = null;
+      isCloudConnected = false;
+      appState = { shopkeepers: [], bills: [], recoveries: [] };
+      updateCloudStatusUI(false);
+      refreshAllViews();
+      closeModal('supabaseModal');
+      showToast('Disconnected from Supabase.', 'info');
+    }
+
+    function copySqlScript() {
+      const textarea = document.getElementById('supabaseSqlScript');
+      textarea.select();
+      textarea.setSelectionRange(0, 99999);
+      document.execCommand('copy');
+      showToast('SQL Setup Script copied to clipboard!', 'success');
+    }
+
+    function getTodayStr(offsetDays = 0) {
+      const d = new Date();
+      d.setDate(d.getDate() + offsetDays);
+      return d.toISOString().split('T')[0];
+    }
+
+    // ==========================================
+    // 3. AUTHENTICATION & ISOLATION
+    // ==========================================
+    document.getElementById('loginForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const rawUser = document.getElementById('loginUsername').value.trim().toLowerCase();
+      const pass = document.getElementById('loginPassword').value;
+      const userObj = USERS[rawUser];
+
+      if (!userObj || !pass) {
+        showToast('Invalid username or password.', 'error');
+        return;
+      }
+      if (!initSupabase() || !supabaseClient) {
+        showToast('Database connection is unavailable. Please try again later.', 'error');
+        return;
+      }
+
+      const submitBtn = document.getElementById('loginSubmitBtn');
+      if (submitBtn) submitBtn.disabled = true;
+      try {
+        const { data, error } = await supabaseClient.auth.signInWithPassword({
+          email: userObj.email,
+          password: pass
+        });
+        if (error) throw error;
+        if (!data.user || data.user.email?.toLowerCase() !== userObj.email) {
+          await supabaseClient.auth.signOut();
+          throw new Error('This account is not authorized for this portal.');
+        }
+
+        currentUser = { username: userObj.username, role: userObj.role, email: userObj.email };
+        await initAuthenticatedUI();
+        showToast(`Welcome, ${currentUser.username}!`, 'success');
+      } catch (err) {
+        console.error('Authentication failed:', err);
+        showToast('Login failed. Check your username/password or contact the administrator.', 'error');
+      } finally {
+        if (submitBtn) submitBtn.disabled = false;
+      }
+    });
+
+    async function logout() {
+      try {
+        if (supabaseClient) await supabaseClient.auth.signOut();
+      } catch (err) {
+        console.error('Sign out failed:', err);
+      }
+      currentUser = null;
+      appState = { shopkeepers: [], bills: [], recoveries: [] };
+      document.getElementById('appShell').classList.add('hidden');
+      document.getElementById('loginScreen').classList.remove('hidden');
+      document.getElementById('loginUsername').value = '';
+      document.getElementById('loginPassword').value = '';
+      lucide.createIcons();
+    }
+
+    async function initAuthenticatedUI() {
+      document.getElementById('loginScreen').classList.add('hidden');
+      document.getElementById('appShell').classList.remove('hidden');
+
+      const roleBadge = document.getElementById('roleBadge');
+      const subtitle = document.getElementById('loggedUserSubtitle');
+      const superadminFilterWrap = document.getElementById('superadminFilterWrap');
+      const exportSalesmanWrap = document.getElementById('exportSalesmanSelectWrap');
+
+      if (currentUser.role === 'SUPERADMIN') {
+        roleBadge.textContent = 'SUPERADMIN';
+        roleBadge.className = 'px-2 py-0.5 text-[11px] font-bold rounded-full bg-amber-100 text-amber-800 uppercase';
+        subtitle.textContent = 'All Salesmen Overview';
+        superadminFilterWrap.classList.remove('hidden');
+        superadminFilterWrap.classList.add('flex');
+        exportSalesmanWrap.classList.remove('hidden');
+        selectedSalesmanFilter = document.getElementById('salesmanFilter').value || 'ALL';
+      } else {
+        roleBadge.textContent = 'SALESMAN';
+        roleBadge.className = 'px-2 py-0.5 text-[11px] font-bold rounded-full bg-indigo-50 text-indigo-700 uppercase';
+        subtitle.textContent = `Logged in as ${currentUser.username}`;
+        superadminFilterWrap.classList.add('hidden');
+        superadminFilterWrap.classList.remove('flex');
+        exportSalesmanWrap.classList.add('hidden');
+        selectedSalesmanFilter = currentUser.username;
+      }
+
+      const today = getTodayStr(0);
+      document.getElementById('exportDailyDate').value = today;
+      document.getElementById('exportMonthlyDate').value = today.slice(0, 7);
+
+      switchTab('dashboard');
+      updateCloudStatusUI(isCloudConnected);
+
+      if (isCloudConnected) {
+        await syncFromCloud(false);
+      } else {
+        refreshAllViews();
+      }
+    }
+
+    // Strict Data Isolation Helpers
+    function getScopedSalesman() {
+      if (!currentUser) return null;
+      if (currentUser.role === 'SALESMAN') return currentUser.username;
+      return selectedSalesmanFilter; // 'ALL' or specific salesman
+    }
+
+    function getVisibleShopkeepers() {
+      const scope = getScopedSalesman();
+      if (scope === 'ALL') return appState.shopkeepers;
+      return appState.shopkeepers.filter(s => s.salesman === scope);
+    }
+
+    function getVisibleBills() {
+      const scope = getScopedSalesman();
+      if (scope === 'ALL') return appState.bills;
+      return appState.bills.filter(b => b.salesman === scope);
+    }
+
+    function getVisibleRecoveries() {
+      const scope = getScopedSalesman();
+      if (scope === 'ALL') return appState.recoveries;
+      return appState.recoveries.filter(r => r.salesman === scope);
+    }
+
+    function handleGlobalFilterChange() {
+      selectedSalesmanFilter = document.getElementById('salesmanFilter').value;
+      refreshAllViews();
+    }
+
+    function getDaysOld(dateStr) {
+      const d = new Date(dateStr);
+      const now = new Date();
+      const diffTime = now - d;
+      return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    }
+
+    function formatPKR(num) {
+      return 'Rs. ' + Number(num || 0).toLocaleString('en-PK');
+    }
+
+    function reconcileAllShops() {
+      // Reconciles shop balances automatically from bills and recoveries
+    }
+
+    function getBillRemaining(bill) {
+      if (typeof bill._unpaidOnBill === 'number') return bill._unpaidOnBill;
+      return Math.max(0, Number(bill.billBalance || 0));
+    }
+
+    function isBillOverdue(bill) {
+      return getBillRemaining(bill) > 0 && getDaysOld(bill.date) > 14;
+    }
+
+    function getShopkeeperPendingBalance(shopId) {
+      const totalBilled = appState.bills
+        .filter(b => b.shopId === shopId)
+        .reduce((sum, b) => sum + Number(b.billBalance || 0), 0);
+      const totalRecovered = appState.recoveries
+        .filter(r => r.shopId === shopId)
+        .reduce((sum, r) => sum + Number(r.amount || 0), 0);
+      return Math.max(0, totalBilled - totalRecovered);
+    }
+
+    // ==========================================
+    // 5. SHOPKEEPER CRUD & LEDGER (SUPABASE)
+    // ==========================================
+    document.getElementById('shopkeeperForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      if (!isCloudConnected || !supabaseClient) {
+        showToast('Please connect Supabase first before saving records!', 'error');
+        openSupabaseModal();
+        return;
+      }
+
+      const name = document.getElementById('shopName').value.trim();
+      const phone = document.getElementById('shopPhone').value.trim();
+      const address = document.getElementById('shopAddress').value.trim();
+      const salesman = currentUser.role === 'SUPERADMIN'
+        ? document.getElementById('shopSalesman').value
+        : currentUser.username;
+
+      if (!name || !phone || !address) {
+        showToast('Please fill all required shopkeeper fields.', 'error');
+        return;
+      }
+
+      const duplicate = appState.shopkeepers.find(s =>
+        s.salesman === salesman &&
+        (s.phone.replace(/\D/g, '') === phone.replace(/\D/g, '') || s.name.toLowerCase() === name.toLowerCase())
+      );
+
+      if (duplicate) {
+        showToast(`Duplicate Shopkeeper! "${duplicate.name}" (${duplicate.phone}) already exists under ${salesman}.`, 'error');
+        return;
+      }
+
+      const btn = document.getElementById('saveShopBtn');
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+
+      const newShop = {
+        id: 'shp_' + Date.now(),
+        salesman,
+        name,
+        phone,
+        address,
+        created_at: getTodayStr(0)
+      };
+
+      const { error } = await supabaseClient.from('shopkeepers').insert([newShop]);
+      btn.disabled = false;
+      btn.textContent = 'Save Shopkeeper';
+
+      if (error) {
+        showToast('Failed to save shopkeeper: ' + error.message, 'error');
+        return;
+      }
+
+      closeModal('shopkeeperModal');
+      document.getElementById('shopkeeperForm').reset();
+      await syncFromCloud(false);
+      showToast(`Shopkeeper "${name}" saved to cloud!`, 'success');
+    });
+
+    function openShopLedger(shopId) {
+      const shop = appState.shopkeepers.find(s => s.id === shopId);
+      if (!shop) return;
+
+      const shopBills = appState.bills.filter(b => b.shopId === shopId);
+      const shopRecs = appState.recoveries.filter(r => r.shopId === shopId);
+
+      const totalBilled = shopBills.reduce((sum, b) => sum + Number(b.billBalance), 0);
+      const totalRecovered = shopRecs.reduce((sum, r) => sum + Number(r.amount), 0);
+      const pending = Math.max(0, totalBilled - totalRecovered);
+
+      document.getElementById('ledgerShopName').textContent = shop.name;
+      document.getElementById('ledgerShopMeta').textContent = `${shop.phone} • ${shop.address} • Salesman: ${shop.salesman}`;
+
+      document.getElementById('ledgerSummaryBar').innerHTML = `
+        <div class="p-3 rounded-xl bg-slate-50 border border-slate-200">
+          <div class="text-[11px] font-bold text-slate-400 uppercase">Total Billed</div>
+          <div class="text-sm sm:text-base font-extrabold text-slate-900 mt-0.5">${formatPKR(totalBilled)}</div>
+        </div>
+        <div class="p-3 rounded-xl bg-emerald-50 border border-emerald-200">
+          <div class="text-[11px] font-bold text-emerald-600 uppercase">Recovered</div>
+          <div class="text-sm sm:text-base font-extrabold text-emerald-700 mt-0.5">${formatPKR(totalRecovered)}</div>
+        </div>
+        <div class="p-3 rounded-xl bg-amber-50 border border-amber-200">
+          <div class="text-[11px] font-bold text-amber-600 uppercase">Pending Bal</div>
+          <div class="text-sm sm:text-base font-extrabold text-amber-700 mt-0.5">${formatPKR(pending)}</div>
+        </div>
+      `;
+
+      // Combine bills & recoveries chronologically
+      const entries = [
+        ...shopBills.map(b => ({
+          date: b.date,
+          desc: `Bill #${b.billNumber} ${b.notes ? '(' + b.notes + ')' : ''}`,
+          debit: Number(b.billBalance),
+          credit: 0
+        })),
+        ...shopRecs.map(r => ({
+          date: r.date,
+          desc: `Recovery (${r.method}) ${r.notes ? '- ' + r.notes : ''}`,
+          debit: 0,
+          credit: Number(r.amount)
+        }))
+      ].sort((a, b) => b.date.localeCompare(a.date));
+
+      const tbody = document.getElementById('ledgerTableBody');
+      if (entries.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="py-8 text-center text-slate-400 text-xs">No transactions yet for this shop.</td></tr>`;
+      } else {
+        tbody.innerHTML = entries.map(item => `
+          <tr>
+            <td class="py-2.5 px-3 font-medium text-slate-600 whitespace-nowrap">${item.date}</td>
+            <td class="py-2.5 px-3 font-medium text-slate-800">${escapeHTML(item.desc)}</td>
+            <td class="py-2.5 px-3 text-right font-bold text-indigo-600">${item.debit > 0 ? formatPKR(item.debit) : '-'}</td>
+            <td class="py-2.5 px-3 text-right font-bold text-emerald-600">${item.credit > 0 ? formatPKR(item.credit) : '-'}</td>
+          </tr>
+        `).join('');
+      }
+
+      openModal('ledgerModal');
+    }
+
+    // ==========================================
+    // 6. BILL CREATION & DUPLICATE PREVENTION
+    // ==========================================
+    function openNewBillModal(preselectedShopId = '') {
+      const shops = getVisibleShopkeepers();
+      if (shops.length === 0) {
+        showToast('Please add at least one shopkeeper first!', 'error');
+        openModal('shopkeeperModal');
+        return;
+      }
+
+      const select = document.getElementById('billShopSelect');
+      select.innerHTML = '<option value="">-- Choose Shopkeeper --</option>' +
+        shops.map(s => `<option value="${s.id}">${escapeHTML(s.name)} (${s.salesman})</option>`).join('');
+
+      document.getElementById('billDate').value = getTodayStr(0);
+      document.getElementById('billNumber').value = 'INV-' + (1000 + appState.bills.length + 1);
+      document.getElementById('billOpeningBal').value = 0;
+      document.getElementById('billCurrentAmt').value = '';
+      document.getElementById('billNotes').value = '';
+      calculateTotalBill();
+
+      if (preselectedShopId) {
+        select.value = preselectedShopId;
+        onBillShopSelect();
+      }
+
+      openModal('newBillModal');
+    }
+
+    function onBillShopSelect() {
+      const shopId = document.getElementById('billShopSelect').value;
+      if (!shopId) {
+        document.getElementById('billOpeningBal').value = 0;
+        calculateTotalBill();
+        return;
+      }
+      const pending = getShopkeeperPendingBalance(shopId);
+      document.getElementById('billOpeningBal').value = pending;
+      calculateTotalBill();
+    }
+
+    function calculateTotalBill() {
+      const opening = Number(document.getElementById('billOpeningBal').value) || 0;
+      const current = Number(document.getElementById('billCurrentAmt').value) || 0;
+      document.getElementById('billTotalDisplay').textContent = formatPKR(opening + current);
+    }
+
+    document.getElementById('newBillForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      if (!isCloudConnected || !supabaseClient) {
+        showToast('Please connect Supabase first!', 'error');
+        openSupabaseModal();
+        return;
+      }
+
+      const shopId = document.getElementById('billShopSelect').value;
+      const date = document.getElementById('billDate').value;
+      const billNumber = document.getElementById('billNumber').value.trim();
+      const openingBalance = Number(document.getElementById('billOpeningBal').value) || 0;
+      const billBalance = Number(document.getElementById('billCurrentAmt').value) || 0;
+      const notes = document.getElementById('billNotes').value.trim();
+
+      if (!shopId || !date || !billNumber || billBalance <= 0) {
+        showToast('Please select a shopkeeper and enter valid bill details.', 'error');
+        return;
+      }
+
+      const shop = appState.shopkeepers.find(s => s.id === shopId);
+      if (!shop) return;
+
+      // STRICT DUPLICATE PREVENTION:
+      const sameDayDuplicate = appState.bills.find(b => b.shopId === shopId && b.date === date);
+      if (sameDayDuplicate) {
+        showToast(`Duplicate Bill Blocked! "${shop.name}" already has a bill (#${sameDayDuplicate.billNumber}) on ${date}.`, 'error');
+        return;
+      }
+
+      const sameNumDuplicate = appState.bills.find(b => b.billNumber.toLowerCase() === billNumber.toLowerCase());
+      if (sameNumDuplicate) {
+        showToast(`Duplicate Bill Number! "${billNumber}" already exists.`, 'error');
+        return;
+      }
+
+      const totalBill = openingBalance + billBalance;
+      const btn = document.getElementById('saveBillBtn');
+      btn.disabled = true;
+      btn.textContent = 'Generating...';
+
+      const newBillRow = {
+        id: 'bil_' + Date.now(),
+        bill_number: billNumber,
+        shop_id: shopId,
+        salesman: shop.salesman,
+        date,
+        opening_balance: openingBalance,
+        bill_balance: billBalance,
+        total_bill: totalBill,
+        paid_amount: openingBalance,
+        notes
+      };
+
+      const { error } = await supabaseClient.from('bills').insert([newBillRow]);
+      btn.disabled = false;
+      btn.textContent = 'Generate Bill';
+
+      if (error) {
+        showToast('Failed to save bill: ' + error.message, 'error');
+        return;
+      }
+
+      closeModal('newBillModal');
+      await syncFromCloud(false);
+      showToast(`Bill #${billNumber} (${formatPKR(totalBill)}) saved to cloud!`, 'success');
+    });
+
+    function deleteBill(billId) {
+      openConfirm('Delete Bill', 'Are you sure you want to delete this bill from cloud database?', async () => {
+        if (!supabaseClient) return;
+        const { error } = await supabaseClient.from('bills').delete().eq('id', billId);
+        if (error) {
+          showToast('Error deleting bill: ' + error.message, 'error');
+          return;
+        }
+        await syncFromCloud(false);
+        showToast('Bill deleted from cloud.', 'info');
+      });
+    }
+
+    // ==========================================
+    // 7. DAILY RECOVERY MANAGEMENT (SUPABASE)
+    // ==========================================
+    function openRecoveryModal(preselectedShopId = '') {
+      const shops = getVisibleShopkeepers();
+      if (shops.length === 0) {
+        showToast('Please add a shopkeeper first!', 'error');
+        return;
+      }
+
+      const select = document.getElementById('recShopSelect');
+      select.innerHTML = '<option value="">-- Choose Shopkeeper --</option>' +
+        shops.map(s => {
+          const bal = getShopkeeperPendingBalance(s.id);
+          return `<option value="${s.id}">${escapeHTML(s.name)} (Pending: ${formatPKR(bal)})</option>`;
+        }).join('');
+
+      document.getElementById('recDate').value = getTodayStr(0);
+      document.getElementById('recAmount').value = '';
+      document.getElementById('recNotes').value = '';
+      document.getElementById('recShopPendingInfo').classList.add('hidden');
+
+      if (preselectedShopId) {
+        select.value = preselectedShopId;
+        onRecShopSelect();
+      }
+
+      openModal('recoveryModal');
+    }
+
+    function onRecShopSelect() {
+      const shopId = document.getElementById('recShopSelect').value;
+      const infoEl = document.getElementById('recShopPendingInfo');
+      if (!shopId) {
+        infoEl.classList.add('hidden');
+        return;
+      }
+      const pending = getShopkeeperPendingBalance(shopId);
+      infoEl.textContent = `Current Pending Balance: ${formatPKR(pending)}`;
+      infoEl.classList.remove('hidden');
+    }
+
+    document.getElementById('recoveryForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      if (!isCloudConnected || !supabaseClient) {
+        showToast('Please connect Supabase first!', 'error');
+        openSupabaseModal();
+        return;
+      }
+
+      const shopId = document.getElementById('recShopSelect').value;
+      const date = document.getElementById('recDate').value;
+      const method = document.getElementById('recMethod').value;
+      const amount = Number(document.getElementById('recAmount').value) || 0;
+      const notes = document.getElementById('recNotes').value.trim();
+
+      if (!shopId || !date || amount <= 0) {
+        showToast('Please select a shopkeeper and enter valid recovery amount.', 'error');
+        return;
+      }
+
+      const shop = appState.shopkeepers.find(s => s.id === shopId);
+      if (!shop) return;
+
+      const btn = document.getElementById('saveRecBtn');
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+
+      const newRecRow = {
+        id: 'rec_' + Date.now(),
+        shop_id: shopId,
+        salesman: shop.salesman,
+        date,
+        amount,
+        method,
+        notes
+      };
+
+      const { error } = await supabaseClient.from('recoveries').insert([newRecRow]);
+      btn.disabled = false;
+      btn.textContent = 'Save Recovery';
+
+      if (error) {
+        showToast('Failed to save recovery: ' + error.message, 'error');
+        return;
+      }
+
+      closeModal('recoveryModal');
+      await syncFromCloud(false);
+      showToast(`Recovery of ${formatPKR(amount)} saved to cloud!`, 'success');
+    });
+
+    function deleteRecovery(recId) {
+      openConfirm('Delete Recovery Entry', 'Are you sure you want to delete this recovery record from cloud?', async () => {
+        if (!supabaseClient) return;
+        const { error } = await supabaseClient.from('recoveries').delete().eq('id', recId);
+        if (error) {
+          showToast('Error deleting recovery: ' + error.message, 'error');
+          return;
+        }
+        await syncFromCloud(false);
+        showToast('Recovery entry deleted.', 'info');
+      });
+    }
+
+    // ==========================================
+    // 8. RENDERING VIEWS
+    // ==========================================
+    function refreshAllViews() {
+      reconcileAllShops();
+      renderDashboard();
+      renderShopkeepers();
+      renderBills();
+      renderRecoveries();
+      lucide.createIcons();
+    }
+
+    function renderDashboard() {
+      const shops = getVisibleShopkeepers();
+      const bills = getVisibleBills();
+      const recoveries = getVisibleRecoveries();
+      const today = getTodayStr(0);
+
+      const totalBilled = bills.reduce((sum, b) => sum + Number(b.billBalance), 0);
+      const totalPending = shops.reduce((sum, s) => sum + getShopkeeperPendingBalance(s.id), 0);
+      const todayRecovery = recoveries.filter(r => r.date === today).reduce((sum, r) => sum + Number(r.amount), 0);
+      const overdueBills = bills.filter(b => isBillOverdue(b));
+
+      // Overdue Banner & Nav Badge
+      const banner = document.getElementById('overdueBanner');
+      const navBadge = document.getElementById('navOverdueCount');
+      if (overdueBills.length > 0) {
+        banner.classList.remove('hidden');
+        const overdueTotal = overdueBills.reduce((sum, b) => sum + getBillRemaining(b), 0);
+        document.getElementById('overdueBannerText').textContent =
+          `${overdueBills.length} bill(s) are pending for more than 14 days (Total Overdue: ${formatPKR(overdueTotal)}).`;
+        navBadge.textContent = overdueBills.length;
+        navBadge.classList.remove('hidden');
+      } else {
+        banner.classList.add('hidden');
+        navBadge.classList.add('hidden');
+      }
+
+      // KPI Cards
+      document.getElementById('kpiGrid').innerHTML = `
+        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+          <div class="flex items-center justify-between text-slate-400 mb-2">
+            <span class="text-xs font-bold uppercase tracking-wider">Today's Recovery</span>
+            <div class="p-2 rounded-xl bg-emerald-50 text-emerald-600"><i data-lucide="banknote" class="w-4 h-4"></i></div>
+          </div>
+          <div class="text-2xl font-extrabold text-emerald-600">${formatPKR(todayRecovery)}</div>
+          <p class="text-xs text-slate-500 mt-1">${recoveries.filter(r => r.date === today).length} collections today</p>
+        </div>
+
+        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+          <div class="flex items-center justify-between text-slate-400 mb-2">
+            <span class="text-xs font-bold uppercase tracking-wider">Total Pending Market</span>
+            <div class="p-2 rounded-xl bg-amber-50 text-amber-600"><i data-lucide="clock" class="w-4 h-4"></i></div>
+          </div>
+          <div class="text-2xl font-extrabold text-amber-600">${formatPKR(totalPending)}</div>
+          <p class="text-xs text-slate-500 mt-1">Across ${shops.length} shopkeepers</p>
+        </div>
+
+        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+          <div class="flex items-center justify-between text-slate-400 mb-2">
+            <span class="text-xs font-bold uppercase tracking-wider">Total Sales Billed</span>
+            <div class="p-2 rounded-xl bg-indigo-50 text-indigo-600"><i data-lucide="trending-up" class="w-4 h-4"></i></div>
+          </div>
+          <div class="text-2xl font-extrabold text-slate-900">${formatPKR(totalBilled)}</div>
+          <p class="text-xs text-slate-500 mt-1">${bills.length} total invoices</p>
+        </div>
+
+        <div class="bg-white p-5 rounded-2xl border ${overdueBills.length > 0 ? 'border-rose-300 bg-rose-50/30' : 'border-slate-200'} shadow-sm">
+          <div class="flex items-center justify-between text-slate-400 mb-2">
+            <span class="text-xs font-bold uppercase tracking-wider ${overdueBills.length > 0 ? 'text-rose-600' : ''}">Overdue (&gt;14 Days)</span>
+            <div class="p-2 rounded-xl bg-rose-100 text-rose-600"><i data-lucide="alert-circle" class="w-4 h-4"></i></div>
+          </div>
+          <div class="text-2xl font-extrabold text-rose-600">${overdueBills.length} Bills</div>
+          <p class="text-xs text-slate-500 mt-1">Requires urgent follow-up</p>
+        </div>
+      `;
+
+      // Superadmin Salesman Breakdown Cards
+      const breakdownWrap = document.getElementById('superadminSalesmanCards');
+      if (currentUser.role === 'SUPERADMIN') {
+        breakdownWrap.classList.remove('hidden');
+        const salesmen = ['Naeem', 'Hussain', 'Amjad'];
+        document.getElementById('salesmanBreakdownGrid').innerHTML = salesmen.map(sm => {
+          const smShops = appState.shopkeepers.filter(s => s.salesman === sm);
+          const smBills = appState.bills.filter(b => b.salesman === sm);
+          const smRecs = appState.recoveries.filter(r => r.salesman === sm);
+          const smPending = smShops.reduce((sum, s) => sum + getShopkeeperPendingBalance(s.id), 0);
+          const smTodayRec = smRecs.filter(r => r.date === today).reduce((sum, r) => sum + Number(r.amount), 0);
+          const smOverdue = smBills.filter(b => isBillOverdue(b)).length;
+
+          return `
+            <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-9 h-9 rounded-xl bg-indigo-600 text-white font-bold flex items-center justify-center text-sm">${sm[0]}</div>
+                  <div>
+                    <h4 class="font-bold text-slate-900 text-sm">${sm}</h4>
+                    <span class="text-[11px] text-slate-500">${smShops.length} Shops Assigned</span>
+                  </div>
+                </div>
+                ${smOverdue > 0 ? `<span class="px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 text-[10px] font-bold">${smOverdue} Overdue</span>` : `<span class="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold">On Track</span>`}
+              </div>
+              <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-xs">
+                <div>
+                  <span class="text-slate-400 block text-[10px] uppercase font-bold">Today Recovery</span>
+                  <span class="font-extrabold text-emerald-600">${formatPKR(smTodayRec)}</span>
+                </div>
+                <div>
+                  <span class="text-slate-400 block text-[10px] uppercase font-bold">Pending Balance</span>
+                  <span class="font-extrabold text-amber-600">${formatPKR(smPending)}</span>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      } else {
+        breakdownWrap.classList.add('hidden');
+      }
+
+      // Recent Bills List
+      const recentBillsEl = document.getElementById('recentBillsList');
+      const sortedBills = [...bills].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
+      if (sortedBills.length === 0) {
+        recentBillsEl.innerHTML = `<div class="p-6 text-center text-xs text-slate-400">No bills created yet.</div>`;
+      } else {
+        recentBillsEl.innerHTML = sortedBills.map(b => {
+          const shop = appState.shopkeepers.find(s => s.id === b.shopId);
+          const overdue = isBillOverdue(b);
+          return `
+            <div class="p-3.5 flex items-center justify-between gap-3 hover:bg-slate-50/60">
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="font-bold text-slate-900 text-xs sm:text-sm">${escapeHTML(shop ? shop.name : 'Unknown')}</span>
+                  ${overdue ? `<span class="px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 text-[10px] font-bold">OVERDUE</span>` : ''}
+                </div>
+                <div class="text-[11px] text-slate-500 mt-0.5">#${b.billNumber} • ${b.date} • ${b.salesman}</div>
+              </div>
+              <div class="text-right">
+                <div class="font-extrabold text-slate-900 text-xs sm:text-sm">${formatPKR(b.totalBill)}</div>
+                <div class="text-[11px] text-slate-400">New: ${formatPKR(b.billBalance)}</div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      // Recent Recoveries List
+      const recentRecsEl = document.getElementById('recentRecoveriesList');
+      const sortedRecs = [...recoveries].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
+      if (sortedRecs.length === 0) {
+        recentRecsEl.innerHTML = `<div class="p-6 text-center text-xs text-slate-400">No recoveries recorded yet.</div>`;
+      } else {
+        recentRecsEl.innerHTML = sortedRecs.map(r => {
+          const shop = appState.shopkeepers.find(s => s.id === r.shopId);
+          return `
+            <div class="p-3.5 flex items-center justify-between gap-3 hover:bg-slate-50/60">
+              <div>
+                <div class="font-bold text-slate-900 text-xs sm:text-sm">${escapeHTML(shop ? shop.name : 'Unknown')}</div>
+                <div class="text-[11px] text-slate-500 mt-0.5">${r.date} • ${r.method} • ${r.salesman}</div>
+              </div>
+              <div class="font-extrabold text-emerald-600 text-xs sm:text-sm">+ ${formatPKR(r.amount)}</div>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+
+    function renderShopkeepers() {
+      const query = (document.getElementById('shopSearchInput').value || '').toLowerCase();
+      const shops = getVisibleShopkeepers().filter(s =>
+        s.name.toLowerCase().includes(query) ||
+        s.phone.toLowerCase().includes(query) ||
+        s.address.toLowerCase().includes(query)
+      );
+
+      const grid = document.getElementById('shopkeepersGrid');
+      if (shops.length === 0) {
+        grid.innerHTML = `<div class="col-span-full bg-white p-10 rounded-2xl border border-slate-200 text-center text-sm text-slate-400">No shopkeepers found. Click "+ Add New Shopkeeper" to add one.</div>`;
+        return;
+      }
+
+      grid.innerHTML = shops.map(shop => {
+        const pending = getShopkeeperPendingBalance(shop.id);
+        const hasOverdue = appState.bills.some(b => b.shopId === shop.id && isBillOverdue(b));
+        const waPhone = shop.phone.replace(/\D/g, '').replace(/^0/, '92');
+        const waMsg = encodeURIComponent(`Assalam-o-Alaikum ${shop.name}, Gigly Distribution ki taraf se aapka pending balance ${formatPKR(pending)} hai. Baraye meherbani payment clear kar dein.`);
+
+        return `
+          <div class="bg-white rounded-2xl border ${hasOverdue ? 'border-rose-300' : 'border-slate-200'} p-5 shadow-sm flex flex-col justify-between gap-4">
+            <div>
+              <div class="flex items-start justify-between gap-2">
+                <div>
+                  <span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-bold uppercase">${shop.salesman}</span>
+                  <h4 class="font-bold text-slate-900 text-base mt-1.5">${escapeHTML(shop.name)}</h4>
+                </div>
+                ${hasOverdue ? `<span class="px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 text-[10px] font-bold">OVERDUE</span>` : ''}
+              </div>
+
+              <div class="mt-3 space-y-1.5 text-xs text-slate-600">
+                <div class="flex items-center gap-2">
+                  <i data-lucide="phone" class="w-3.5 h-3.5 text-slate-400 shrink-0"></i>
+                  <span class="font-semibold">${escapeHTML(shop.phone)}</span>
+                </div>
+                <div class="flex items-start gap-2">
+                  <i data-lucide="map-pin" class="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5"></i>
+                  <span>${escapeHTML(shop.address)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="pt-3 border-t border-slate-100 space-y-3">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-500">Pending Balance</span>
+                <span class="text-base font-extrabold ${pending > 0 ? 'text-amber-600' : 'text-emerald-600'}">${formatPKR(pending)}</span>
+              </div>
+
+              <div class="grid grid-cols-4 gap-1.5">
+                <button onclick="openNewBillModal('${shop.id}')" title="New Bill"
+                  class="py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[11px] font-bold flex items-center justify-center gap-1">
+                  + Bill
+                </button>
+                <button onclick="openRecoveryModal('${shop.id}')" title="Add Recovery"
+                  class="py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[11px] font-bold flex items-center justify-center gap-1">
+                  + Pay
+                </button>
+                <button onclick="openShopLedger('${shop.id}')" title="View Ledger"
+                  class="py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold flex items-center justify-center">
+                  Ledger
+                </button>
+                <a href="https://wa.me/${waPhone}?text=${waMsg}" target="_blank" title="Send WhatsApp Reminder"
+                  class="py-2 rounded-xl bg-green-500 hover:bg-green-600 text-white text-[11px] font-bold flex items-center justify-center">
+                  WA
+                </a>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function setBillFilter(filter) {
+      currentBillFilter = filter;
+      document.querySelectorAll('.bill-filter-btn').forEach(btn => {
+        if (btn.dataset.bfilter === filter) {
+          btn.className = 'bill-filter-btn px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 text-white';
+        } else {
+          btn.className = btn.dataset.bfilter === 'OVERDUE'
+            ? 'bill-filter-btn px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-50 text-rose-600'
+            : 'bill-filter-btn px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-600';
+        }
+      });
+      renderBills();
+    }
+
+    function viewOverdueBills() {
+      switchTab('bills');
+      setBillFilter('OVERDUE');
+    }
+
+    function renderBills() {
+      const search = (document.getElementById('billSearchInput').value || '').toLowerCase();
+      let bills = getVisibleBills();
+
+      if (currentBillFilter === 'PENDING') {
+        bills = bills.filter(b => getBillRemaining(b) > 0);
+      } else if (currentBillFilter === 'OVERDUE') {
+        bills = bills.filter(b => isBillOverdue(b));
+      } else if (currentBillFilter === 'PAID') {
+        bills = bills.filter(b => getBillRemaining(b) <= 0);
+      }
+
+      if (search) {
+        bills = bills.filter(b => {
+          const shop = appState.shopkeepers.find(s => s.id === b.shopId);
+          return b.billNumber.toLowerCase().includes(search) ||
+                 (shop && shop.name.toLowerCase().includes(search));
+        });
+      }
+
+      bills.sort((a, b) => b.date.localeCompare(a.date));
+
+      const tbody = document.getElementById('billsTableBody');
+      if (bills.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" class="py-10 text-center text-slate-400 text-sm">No bills match the selected filter.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = bills.map(b => {
+        const shop = appState.shopkeepers.find(s => s.id === b.shopId);
+        const remaining = getBillRemaining(b);
+        const daysOld = getDaysOld(b.date);
+        const overdue = isBillOverdue(b);
+
+        let statusBadge = '';
+        if (remaining <= 0) {
+          statusBadge = `<span class="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-bold">PAID</span>`;
+        } else if (overdue) {
+          statusBadge = `<span class="px-2.5 py-1 rounded-full bg-rose-600 text-white text-[11px] font-bold animate-pulse">OVERDUE (${daysOld}d)</span>`;
+        } else {
+          statusBadge = `<span class="px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-[11px] font-bold">Pending (${daysOld}d)</span>`;
+        }
+
+        return `
+          <tr class="${overdue ? 'bg-rose-50/40' : 'hover:bg-slate-50/70'}">
+            <td class="py-3.5 px-4">
+              <div class="font-mono font-bold text-slate-900 text-xs">${escapeHTML(b.billNumber)}</div>
+              <div class="text-[11px] text-slate-500">${b.date}</div>
+            </td>
+            <td class="py-3.5 px-4">
+              <div class="font-bold text-slate-800">${escapeHTML(shop ? shop.name : 'Unknown Shop')}</div>
+              ${b.notes ? `<div class="text-[11px] text-slate-400 truncate max-w-[180px]">${escapeHTML(b.notes)}</div>` : ''}
+            </td>
+            <td class="py-3.5 px-4 text-xs font-semibold text-slate-600">${b.salesman}</td>
+            <td class="py-3.5 px-4 text-right text-xs text-slate-600">${formatPKR(b.openingBalance)}</td>
+            <td class="py-3.5 px-4 text-right text-xs font-semibold text-slate-800">${formatPKR(b.billBalance)}</td>
+            <td class="py-3.5 px-4 text-right font-extrabold text-indigo-700">${formatPKR(b.totalBill)}</td>
+            <td class="py-3.5 px-4 text-right font-bold ${remaining > 0 ? 'text-amber-600' : 'text-emerald-600'}">${formatPKR(remaining)}</td>
+            <td class="py-3.5 px-4">${statusBadge}</td>
+            <td class="py-3.5 px-4 text-right">
+              <div class="flex items-center justify-end gap-1.5">
+                ${remaining > 0 ? `<button onclick="openRecoveryModal('${b.shopId}')" class="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold">Pay</button>` : ''}
+                <button onclick="deleteBill('${b.id}')" title="Delete Bill" class="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50">
+                  <i data-lucide="trash-2" class="w-4 h-4"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function renderRecoveries() {
+      const dateFilter = document.getElementById('recoveryDateFilter').value;
+      let recs = getVisibleRecoveries();
+
+      if (dateFilter) {
+        recs = recs.filter(r => r.date === dateFilter);
+      }
+
+      recs.sort((a, b) => b.date.localeCompare(a.date));
+
+      const tbody = document.getElementById('recoveriesTableBody');
+      if (recs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="py-10 text-center text-slate-400 text-sm">No recovery records found for this filter.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = recs.map(r => {
+        const shop = appState.shopkeepers.find(s => s.id === r.shopId);
+        return `
+          <tr class="hover:bg-slate-50/70">
+            <td class="py-3.5 px-4 font-semibold text-slate-700 text-xs">${r.date}</td>
+            <td class="py-3.5 px-4 font-bold text-slate-900">${escapeHTML(shop ? shop.name : 'Unknown Shop')}</td>
+            <td class="py-3.5 px-4 text-xs font-semibold text-slate-600">${r.salesman}</td>
+            <td class="py-3.5 px-4"><span class="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-xs font-semibold">${r.method}</span></td>
+            <td class="py-3.5 px-4 text-xs text-slate-500">${escapeHTML(r.notes || '-')}</td>
+            <td class="py-3.5 px-4 text-right font-extrabold text-emerald-600">${formatPKR(r.amount)}</td>
+            <td class="py-3.5 px-4 text-right">
+              <button onclick="deleteRecovery('${r.id}')" title="Delete Recovery" class="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // ==========================================
+    // 9. EXCEL EXPORTS (SHEETJS) & JSON BACKUP
+    // ==========================================
+    function exportExcel(type) {
+      if (typeof XLSX === 'undefined') {
+        showToast('Excel library is still loading. Please check internet connection.', 'error');
+        return;
+      }
+
+      const dailyDate = document.getElementById('exportDailyDate').value || getTodayStr(0);
+      const monthlyStr = document.getElementById('exportMonthlyDate').value || getTodayStr(0).slice(0, 7);
+      const scope = currentUser.role === 'SUPERADMIN'
+        ? document.getElementById('exportSalesmanScope').value
+        : currentUser.username;
+
+      const filterByScope = (arr) => scope === 'ALL' ? arr : arr.filter(x => x.salesman === scope);
+      const getShopName = (id) => {
+        const s = appState.shopkeepers.find(x => x.id === id);
+        return s ? s.name : 'Unknown';
+      };
+      const getShopPhone = (id) => {
+        const s = appState.shopkeepers.find(x => x.id === id);
+        return s ? s.phone : '';
+      };
+
+      const wb = XLSX.utils.book_new();
+      let filename = `Gigly_${type}_${scope}.xlsx`;
+
+      if (type === 'DAILY_RECOVERY') {
+        const rows = filterByScope(appState.recoveries)
+          .filter(r => r.date === dailyDate)
+          .map(r => ({
+            'Date': r.date,
+            'Salesman': r.salesman,
+            'Shopkeeper Name': getShopName(r.shopId),
+            'Phone': getShopPhone(r.shopId),
+            'Payment Method': r.method,
+            'Recovered Amount (PKR)': Number(r.amount),
+            'Notes': r.notes || ''
+          }));
+        const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{ Message: `No recovery records found on ${dailyDate}` }]);
+        XLSX.utils.book_append_sheet(wb, ws, 'Daily Recovery');
+        filename = `Daily_Recovery_${scope}_${dailyDate}.xlsx`;
+      }
+
+      else if (type === 'MONTHLY_RECOVERY') {
+        const rows = filterByScope(appState.recoveries)
+          .filter(r => r.date.startsWith(monthlyStr))
+          .map(r => ({
+            'Date': r.date,
+            'Salesman': r.salesman,
+            'Shopkeeper Name': getShopName(r.shopId),
+            'Phone': getShopPhone(r.shopId),
+            'Payment Method': r.method,
+            'Recovered Amount (PKR)': Number(r.amount),
+            'Notes': r.notes || ''
+          }));
+        const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{ Message: `No recovery records found for ${monthlyStr}` }]);
+        XLSX.utils.book_append_sheet(wb, ws, 'Monthly Recovery');
+        filename = `Monthly_Recovery_${scope}_${monthlyStr}.xlsx`;
+      }
+
+      else if (type === 'DAILY_BILLS') {
+        const rows = filterByScope(appState.bills)
+          .filter(b => b.date === dailyDate)
+          .map(b => ({
+            'Date': b.date,
+            'Bill #': b.billNumber,
+            'Salesman': b.salesman,
+            'Shopkeeper Name': getShopName(b.shopId),
+            'Opening Balance': Number(b.openingBalance),
+            'New Bill Balance': Number(b.billBalance),
+            'Total Bill': Number(b.totalBill),
+            'Remaining Pending': getBillRemaining(b),
+            'Status': getBillRemaining(b) <= 0 ? 'PAID' : (isBillOverdue(b) ? 'OVERDUE (>14d)' : 'PENDING'),
+            'Notes': b.notes || ''
+          }));
+        const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{ Message: `No bills found on ${dailyDate}` }]);
+        XLSX.utils.book_append_sheet(wb, ws, 'Daily Bills');
+        filename = `Daily_Bills_${scope}_${dailyDate}.xlsx`;
+      }
+
+      else if (type === 'MONTHLY_BILLS') {
+        const rows = filterByScope(appState.bills)
+          .filter(b => b.date.startsWith(monthlyStr))
+          .map(b => ({
+            'Date': b.date,
+            'Bill #': b.billNumber,
+            'Salesman': b.salesman,
+            'Shopkeeper Name': getShopName(b.shopId),
+            'Opening Balance': Number(b.openingBalance),
+            'New Bill Balance': Number(b.billBalance),
+            'Total Bill': Number(b.totalBill),
+            'Remaining Pending': getBillRemaining(b),
+            'Age (Days)': getDaysOld(b.date),
+            'Status': getBillRemaining(b) <= 0 ? 'PAID' : (isBillOverdue(b) ? 'OVERDUE (>14d)' : 'PENDING'),
+            'Notes': b.notes || ''
+          }));
+        const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{ Message: `No bills found for ${monthlyStr}` }]);
+        XLSX.utils.book_append_sheet(wb, ws, 'Monthly Bills');
+        filename = `Monthly_Bills_${scope}_${monthlyStr}.xlsx`;
+      }
+
+      else if (type === 'SHOPKEEPERS') {
+        const rows = filterByScope(appState.shopkeepers).map(s => ({
+          'Salesman': s.salesman,
+          'Shopkeeper Name': s.name,
+          'Phone Number': s.phone,
+          'Address': s.address,
+          'Current Pending Balance (PKR)': getShopkeeperPendingBalance(s.id)
+        }));
+        const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{ Message: 'No shopkeepers found' }]);
+        XLSX.utils.book_append_sheet(wb, ws, 'Shopkeepers Ledger');
+        filename = `Shopkeepers_Ledger_${scope}_${getTodayStr(0)}.xlsx`;
+      }
+
+      else if (type === 'MASTER_ALL') {
+        // Sheet 1: Shopkeepers
+        const shopRows = filterByScope(appState.shopkeepers).map(s => ({
+          'Salesman': s.salesman,
+          'Shopkeeper Name': s.name,
+          'Phone': s.phone,
+          'Address': s.address,
+          'Pending Balance (PKR)': getShopkeeperPendingBalance(s.id)
+        }));
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(shopRows.length ? shopRows : [{ Info: 'No data' }]), 'Shopkeepers');
+
+        // Sheet 2: All Bills
+        const billRows = filterByScope(appState.bills).map(b => ({
+          'Date': b.date,
+          'Bill #': b.billNumber,
+          'Salesman': b.salesman,
+          'Shopkeeper': getShopName(b.shopId),
+          'Opening Bal': Number(b.openingBalance),
+          'New Bill': Number(b.billBalance),
+          'Total Bill': Number(b.totalBill),
+          'Remaining': getBillRemaining(b),
+          'Status': getBillRemaining(b) <= 0 ? 'PAID' : (isBillOverdue(b) ? 'OVERDUE (>14d)' : 'PENDING')
+        }));
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(billRows.length ? billRows : [{ Info: 'No data' }]), 'All Bills');
+
+        // Sheet 3: All Recoveries
+        const recRows = filterByScope(appState.recoveries).map(r => ({
+          'Date': r.date,
+          'Salesman': r.salesman,
+          'Shopkeeper': getShopName(r.shopId),
+          'Method': r.method,
+          'Amount Recovered': Number(r.amount),
+          'Notes': r.notes || ''
+        }));
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(recRows.length ? recRows : [{ Info: 'No data' }]), 'All Recoveries');
+
+        // Separate Salesman Tabs if Superadmin
+        if (currentUser.role === 'SUPERADMIN') {
+          ['Naeem', 'Hussain', 'Amjad'].forEach(sm => {
+            const smRecs = appState.recoveries.filter(r => r.salesman === sm).map(r => ({
+              'Date': r.date,
+              'Shopkeeper': getShopName(r.shopId),
+              'Method': r.method,
+              'Recovered (PKR)': Number(r.amount),
+              'Notes': r.notes || ''
+            }));
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(smRecs.length ? smRecs : [{ Info: `No recoveries for ${sm}` }]), `${sm}_Recoveries`);
+          });
+        }
+        filename = `Gigly_Master_Report_${getTodayStr(0)}.xlsx`;
+      }
+
+      XLSX.writeFile(wb, filename);
+      showToast(`Downloaded ${filename}`, 'success');
+    }
+
+    function downloadJSONBackup() {
+      const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(appState, null, 2));
+      const a = document.createElement('a');
+      a.href = dataStr;
+      a.download = `Gigly_Cloud_Snapshot_${getTodayStr(0)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      showToast('Cloud JSON snapshot downloaded!', 'success');
+    }
+
+    // ==========================================
+    // 10. UI HELPERS (TABS, MODALS, TOASTS)
+    // ==========================================
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab-section').forEach(sec => sec.classList.add('hidden'));
+      document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+
+      document.querySelectorAll('.nav-btn').forEach(btn => {
+        if (btn.dataset.tab === tabName) {
+          btn.className = 'nav-btn active flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap bg-indigo-600 text-white shadow-sm transition';
+        } else {
+          btn.className = 'nav-btn flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap text-slate-600 hover:bg-slate-100 transition';
+        }
+      });
+      lucide.createIcons();
+    }
+
+    function openModal(id) {
+      if (id === 'shopkeeperModal') {
+        const wrap = document.getElementById('shopSalesmanFieldWrap');
+        if (currentUser && currentUser.role === 'SUPERADMIN') {
+          wrap.classList.remove('hidden');
+        } else {
+          wrap.classList.add('hidden');
+        }
+      }
+      const el = document.getElementById(id);
+      el.classList.remove('hidden');
+      el.classList.add('flex');
+      lucide.createIcons();
+    }
+
+    function closeModal(id) {
+      const el = document.getElementById(id);
+      el.classList.add('hidden');
+      el.classList.remove('flex');
+    }
+
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const colors = {
+        success: 'bg-emerald-600 text-white',
+        error: 'bg-rose-600 text-white',
+        info: 'bg-slate-900 text-white'
+      };
+      const toast = document.createElement('div');
+      toast.className = `pointer-events-auto px-4 py-3 rounded-2xl shadow-xl text-xs sm:text-sm font-semibold flex items-center justify-between gap-3 transition-all transform translate-y-0 ${colors[type] || colors.info}`;
+      toast.innerHTML = `<span>${escapeHTML(message)}</span>`;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+      }, 3800);
+    }
+
+    function openConfirm(title, message, onConfirm) {
+      document.getElementById('confirmTitle').textContent = title;
+      document.getElementById('confirmMessage').textContent = message;
+      const modal = document.getElementById('confirmModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+
+      const cancelBtn = document.getElementById('confirmCancelBtn');
+      const okBtn = document.getElementById('confirmOkBtn');
+
+      const cleanup = () => {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      };
+
+      cancelBtn.onclick = cleanup;
+      okBtn.onclick = () => {
+        cleanup();
+        onConfirm();
+      };
+    }
+
+    function escapeHTML(str) {
+      return String(str || '').replace(/[&<>"']/g, m => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[m]));
+    }
+
+    // ==========================================
+    // 11. BOOTSTRAP ON LOAD
+    // ==========================================
+    window.addEventListener('DOMContentLoaded', async () => {
+      lucide.createIcons();
+      if (!initSupabase() || !supabaseClient) return;
+
+      try {
+        const { data, error } = await supabaseClient.auth.getSession();
+        if (error) throw error;
+        const sessionUser = data.session?.user;
+        if (!sessionUser?.email) return;
+
+        const matched = Object.values(USERS).find(
+          user => user.email.toLowerCase() === sessionUser.email.toLowerCase()
+        );
+        if (!matched) {
+          await supabaseClient.auth.signOut();
+          return;
+        }
+
+        currentUser = {
+          username: matched.username,
+          role: matched.role,
+          email: matched.email
+        };
+        await initAuthenticatedUI();
+      } catch (err) {
+        console.error('Session restore failed:', err);
+        await supabaseClient.auth.signOut();
+      }
+    });
+  </script>
+</body>
+</html>
